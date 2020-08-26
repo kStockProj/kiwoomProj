@@ -250,19 +250,87 @@ class Kiwoom(QAxWidget) :
                 data.append("")
                 #getCommDataEx를 쓰면 이 방법을 사용하지 않아도 됨.
                 self.calcul_data.append(data.copy())
-            print(self.calcul_data)
+            #print(self.calcul_data)
             if sPrevNext == "2":
                 self.day_kiwoom_db(code=code, sPrevNext=sPrevNext)
             else :
                 #원하는 종목만 보고싶다.
-
+                print(self.calcul_data)
                 pass_success = False
                 # 120일 이평선을 그릴만큼의 데이터가 있는지 체크
                 if self.calcul_data == None or len(self.calcul_data) < 120:
                     pass_success = False
 
                 else:
-                    
+                    # 120일 이평선의 최근 가격 구함
+                    total_price = 0
+                    for value in self.calcul_data[:120]:
+                        total_price += int(value[1])
+                    moving_average_price = total_price / 120
+
+                    # 오늘자 주가가 120일 이평선에 걸쳐있는지 확인
+                    bottom_stock_price = False
+                    check_price = None
+                    #6:고가 7:저가
+                    if int(self.calcul_data[0][7]) <= moving_average_price and moving_average_price <= int(self.calcul_data[0][6]):
+                        print("오늘 주가 120이평선 아래에 걸쳐있는 것 확인")
+                        bottom_stock_price = True
+                        check_price = int(self.calcul_data[0][6]) #현재기준 '고가'가 과거기준 '저가'보다 높아야 하는 case를 찾아야함.
+                                                                  #그랜빌의 매수법칙 참조할 것 .
+
+                        # 과거 일봉 데이터를 조회하면서 120일 이평선보다 주가가 계속 밑에 존재하는지 확인
+                        prev_price = None
+                        if bottom_stock_price == True:
+
+                            moving_average_price_prev = 0
+                            price_top_moving = False
+                            idx = 1
+                            while True:
+
+                                if len(self.calcul_data[idx:]) < 120:  # 120일치가 있는지 계속 확인
+                                    print("120일치가 없음")
+                                    break
+
+                                total_price = 0
+                                for value in self.calcul_data[idx:120 + idx]:
+                                    total_price += int(value[1])
+                                moving_average_price_prev = total_price / 120
+
+                                if moving_average_price_prev <= int(self.calcul_data[idx][6]) and idx <= 5:
+                                    print("5일 동안 주가가 120일 이평선과 같거나 위에 있으면 조건 통과 못함")
+                                    price_top_moving = False
+                                    break
+
+                                elif int(self.calcul_data[idx][
+                                             7]) > moving_average_price_prev and idx > 5:  # 120일 이평선 위에 있는 구간 존재
+                                    print("120일치 이평선 위에 있는 구간 확인됨")
+                                    price_top_moving = True
+                                    prev_price = int(self.calcul_data[idx][7])
+                                    break
+
+                                idx += 1
+                            # 해당부분 이평선이 가장 최근의 이평선 가격보다 낮은지 확인
+                            if price_top_moving == True:
+                                if moving_average_price > moving_average_price_prev and check_price > prev_price:
+                                    self.logging.logger.debug("포착된 이평선의 가격이 오늘자 이평선 가격보다 낮은 것 확인")
+                                    self.logging.logger.debug("포착된 부분의 저가가 오늘자 주가의 고가보다 낮은지 확인")
+                                    pass_success = True
+
+                    if pass_success == True:
+                        print("조건부 통과됨")
+
+                        code_nm = self.dynamicCall("GetMasterCodeName(QString)", code)
+
+                        f = open("files/condition_stock.txt", "a", encoding="utf8")
+                        f.write("%s\t%s\t%s\n" % (code, code_nm, str(self.calcul_data[0][1])))
+                        f.close()
+
+
+                    elif pass_success == False:
+                        print("조건부 통과 못함")
+
+                    self.calcul_data.clear() #리스트삭제
+                    self.calculator_event_loop.exit()
 
                 self.calculator_event_loop.exit()
 
@@ -283,15 +351,13 @@ class Kiwoom(QAxWidget) :
         :return:
         '''
 
-        code_list = self.get_code_list_by_market("10")
+        code_list = self.get_code_list_by_market("10") #코스닥종목 가져오기
         print("코스닥 갯수 %s " % len(code_list))
-        #self.logging.logger.debug("코스닥 갯수 %s " % len(code_list))
 
         for idx, code in enumerate(code_list):
             self.dynamicCall("DisconnectRealData(QString)", self.screen_calculation_stock)  # 스크린 연결 끊기
 
             print("%s / %s :  KOSDAQ Stock Code : %s is updating... " % (idx + 1, len(code_list), code))
-            #self.logging.logger.debug("%s / %s :  KOSDAQ Stock Code : %s is updating... " % (idx + 1, len(code_list), code))
             self.day_kiwoom_db(code=code)
 
     def day_kiwoom_db(self, code=None, date=None, sPrevNext="0"):
