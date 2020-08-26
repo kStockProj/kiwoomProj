@@ -254,6 +254,16 @@ class Kiwoom(QAxWidget) :
             if sPrevNext == "2":
                 self.day_kiwoom_db(code=code, sPrevNext=sPrevNext)
             else :
+                #원하는 종목만 보고싶다.
+
+                pass_success = False
+                # 120일 이평선을 그릴만큼의 데이터가 있는지 체크
+                if self.calcul_data == None or len(self.calcul_data) < 120:
+                    pass_success = False
+
+                else:
+                    
+
                 self.calculator_event_loop.exit()
 
     def get_code_list_by_market(self, market_code):
